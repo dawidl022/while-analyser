@@ -7,10 +7,10 @@ pub enum AExp {
     Mul(MulExp),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BExp {
-    True(TrueExp),
-    False(FalseExp),
+    True,
+    False,
     Not(NotExp),
     BoolOp(BoolOp),
     RelOp(RelOp),
@@ -53,36 +53,30 @@ pub struct MulExp {
     pub right: Box<AExp>,
 }
 
-#[derive(Debug, PartialEq)]
-pub struct TrueExp;
-
-#[derive(Debug, PartialEq)]
-pub struct FalseExp;
-
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NotExp {
     pub exp: Box<BExp>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BoolOp {
     And(AndExp),
     Or(OrExp),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AndExp {
     pub left: Box<BExp>,
     pub right: Box<BExp>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OrExp {
     pub left: Box<BExp>,
     pub right: Box<BExp>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum RelOp {
     Eq(EqExp),
     Neq(NeqExp),
@@ -92,40 +86,40 @@ pub enum RelOp {
     Geq(GeqExp),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct EqExp {
-    pub left: Box<AExp>,
-    pub right: Box<AExp>,
+    pub left: AExp,
+    pub right: AExp,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NeqExp {
-    pub left: Box<AExp>,
-    pub right: Box<AExp>,
+    pub left: AExp,
+    pub right: AExp,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LtExp {
-    pub left: Box<AExp>,
-    pub right: Box<AExp>,
+    pub left: AExp,
+    pub right: AExp,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LeqExp {
-    pub left: Box<AExp>,
-    pub right: Box<AExp>,
+    pub left: AExp,
+    pub right: AExp,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GtExp {
-    pub left: Box<AExp>,
-    pub right: Box<AExp>,
+    pub left: AExp,
+    pub right: AExp,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GeqExp {
-    pub left: Box<AExp>,
-    pub right: Box<AExp>,
+    pub left: AExp,
+    pub right: AExp,
 }
 
 #[derive(Debug, PartialEq)]
