@@ -158,8 +158,7 @@ pub enum LabStmt {
 
 #[derive(Debug, PartialEq)]
 pub struct LabAssign {
-    pub var: Var,
-    pub exp: AExp,
+    pub inner: Assign,
     pub label: u32,
 }
 
