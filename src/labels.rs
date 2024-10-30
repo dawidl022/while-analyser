@@ -505,4 +505,15 @@ mod tests {
 
         assert_eq!(l.to_string(), "while [true]¹ do (\n    [skip]²);\n[skip]³");
     }
+
+    #[test]
+    fn complete_program() {
+        let p = parse("y := x; x := 1; while y > 1 do (z := z * y; y := y - 1); y := 0").unwrap();
+        let l = label(p);
+
+        assert_eq!(
+            l.to_string(),
+            "[y := x]¹;\n[x := 1]²;\nwhile [y > 1]³ do (\n    [z := z * y]⁴;\n    [y := y - 1]⁵);\n[y := 0]⁶"
+        );
+    }
 }
