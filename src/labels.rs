@@ -8,13 +8,22 @@ impl ast::Stmt {
     fn label(self, l: u32) -> (ast::LabStmt, u32) {
         match self {
             ast::Stmt::Skip => (LabStmt::Skip(LabSkip { label: l }), l + 1),
-            ast::Stmt::Assign(_) => todo!(),
+            ast::Stmt::Assign(a) => {
+                let (a, l) = (LabAssign { inner: a, label: l }, l + 1);
+                (LabStmt::Assign(a), l)
+            }
             ast::Stmt::Seq(seq) => {
                 let (seq, l) = seq.label(l);
                 (LabStmt::Seq(seq), l)
             }
-            ast::Stmt::If(_) => todo!(),
-            ast::Stmt::While(_) => todo!(),
+            ast::Stmt::If(i) => {
+                let (i, l) = i.label(l);
+                (LabStmt::If(i), l)
+            }
+            ast::Stmt::While(w) => {
+                let (w, l) = w.label(l);
+                (LabStmt::While(w), l)
+            }
         }
     }
 }
@@ -32,6 +41,41 @@ impl ast::Seq {
         )
     }
 }
+
+impl ast::If {
+    fn label(self, l: u32) -> (ast::LabIf, u32) {
+        let cond_label = l;
+        let (then, l) = self.then.label(l + 1);
+        let (r#else, l) = self.r#else.label(l);
+        (
+            ast::LabIf {
+                cond: self.cond,
+                cond_label,
+                then: Box::new(then),
+                r#else: Box::new(r#else),
+            },
+            l,
+        )
+    }
+}
+
+impl ast::While {
+    fn label(self, l: u32) -> (ast::LabWhile, u32) {
+        let cond_label = l;
+        let (body, l) = self.body.label(l + 1);
+        (
+            ast::LabWhile {
+                cond: self.cond,
+                cond_label,
+                body: Box::new(body),
+            },
+            l,
+        )
+    }
+}
+
+/// Soft-tab represented by 4 spaces
+const TAB: &str = "    ";
 
 impl std::fmt::Display for LabStmt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -55,7 +99,7 @@ fn write_stmt(
 
 impl std::fmt::Display for LabAssign {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}]¹", self.inner)
+        write!(f, "[{}]{}", self.inner, superscript(self.label))
     }
 }
 
@@ -160,13 +204,7 @@ fn write_seq(
     stmt: &ast::LabSeq,
     nesting: usize,
 ) -> std::fmt::Result {
-    write!(
-        f,
-        "{};\n{}{}",
-        stmt.first,
-        "\t".repeat(nesting),
-        stmt.second
-    )
+    write!(f, "{};\n{}{}", stmt.first, TAB.repeat(nesting), stmt.second)
 }
 
 fn write_if(
@@ -174,13 +212,19 @@ fn write_if(
     stmt: &ast::LabIf,
     nesting: usize,
 ) -> Result<(), std::fmt::Error> {
-    write!(f, "if {} then\n{}", stmt.cond, "\t".repeat(nesting + 1),)?;
+    write!(
+        f,
+        "if [{}]{} then\n{}",
+        stmt.cond,
+        superscript(stmt.cond_label),
+        TAB.repeat(nesting + 1),
+    )?;
     write_stmt(f, stmt.then.as_ref(), nesting + 1)?;
     write!(
         f,
         "\n{}else\n{}",
-        "\t".repeat(nesting),
-        "\t".repeat(nesting + 1),
+        TAB.repeat(nesting),
+        TAB.repeat(nesting + 1),
     )?;
     write_stmt(f, stmt.r#else.as_ref(), nesting + 1)
 }
@@ -190,7 +234,13 @@ fn write_while(
     stmt: &ast::LabWhile,
     nesting: usize,
 ) -> Result<(), std::fmt::Error> {
-    write!(f, "while {} do (\n{}", stmt.cond, "\t".repeat(nesting + 1))?;
+    write!(
+        f,
+        "while [{}]{} do (\n{}",
+        stmt.cond,
+        superscript(stmt.cond_label),
+        TAB.repeat(nesting + 1)
+    )?;
     write_stmt(f, stmt.body.as_ref(), nesting + 1)?;
     write!(f, ")")
 }
@@ -215,5 +265,244 @@ mod tests {
         let l = label(p);
 
         assert_eq!(l.to_string(), "[skip]¹;\n[skip]²");
+    }
+
+    #[test]
+    fn three_skips() {
+        let p = parse("skip; skip; skip").unwrap();
+        let l = label(p);
+
+        assert_eq!(l.to_string(), "[skip]¹;\n[skip]²;\n[skip]³");
+    }
+
+    #[test]
+    fn two_digit_labels() {
+        let p = parse("skip; skip; skip; skip; skip; skip; skip; skip; skip; skip").unwrap();
+        let l = label(p);
+
+        assert_eq!(l.to_string(), "[skip]¹;\n[skip]²;\n[skip]³;\n[skip]⁴;\n[skip]⁵;\n[skip]⁶;\n[skip]⁷;\n[skip]⁸;\n[skip]⁹;\n[skip]¹⁰");
+    }
+
+    #[test]
+    fn single_assignment() {
+        let p = parse("x := 1").unwrap();
+        let l = label(p);
+
+        assert_eq!(l.to_string(), "[x := 1]¹");
+    }
+
+    #[test]
+    fn two_assignments() {
+        let p = parse("x := 1; y := 2").unwrap();
+        let l = label(p);
+
+        assert_eq!(l.to_string(), "[x := 1]¹;\n[y := 2]²");
+    }
+
+    #[test]
+    fn assignment_followed_by_skip() {
+        let p = parse("x := 1; skip").unwrap();
+        let l = label(p);
+
+        assert_eq!(l.to_string(), "[x := 1]¹;\n[skip]²");
+    }
+
+    #[test]
+    fn variable_assignment() {
+        let p = parse("x := y").unwrap();
+        let l = label(p);
+
+        assert_eq!(l.to_string(), "[x := y]¹");
+    }
+
+    #[test]
+    fn assignment_constant_addition() {
+        let p = parse("x := 1 + 2").unwrap();
+        let l = label(p);
+
+        assert_eq!(l.to_string(), "[x := 1 + 2]¹");
+    }
+
+    #[test]
+    fn assignment_nested_constant_addition() {
+        let p = parse("x := 1 + 2 + 3").unwrap();
+        let l = label(p);
+
+        assert_eq!(l.to_string(), "[x := 1 + 2 + 3]¹");
+    }
+
+    #[test]
+    fn assignment_constant_subtraction() {
+        let p = parse("x := 1 - 2").unwrap();
+        let l = label(p);
+
+        assert_eq!(l.to_string(), "[x := 1 - 2]¹");
+    }
+
+    #[test]
+    fn assignment_constant_multiplication() {
+        let p = parse("x := 1 * 2").unwrap();
+        let l = label(p);
+
+        assert_eq!(l.to_string(), "[x := 1 * 2]¹");
+    }
+
+    #[test]
+    fn if_statement_true_cond() {
+        let p = parse("if true then skip else skip").unwrap();
+        let l = label(p);
+
+        assert_eq!(
+            l.to_string(),
+            "if [true]¹ then\n    [skip]²\nelse\n    [skip]³"
+        );
+    }
+
+    #[test]
+    fn if_statement_false_cond() {
+        let p = parse("if false then skip else skip").unwrap();
+        let l = label(p);
+
+        assert_eq!(
+            l.to_string(),
+            "if [false]¹ then\n    [skip]²\nelse\n    [skip]³"
+        );
+    }
+
+    #[test]
+    fn if_statement_eq_check() {
+        let p = parse("if 1 = 2 then skip else skip").unwrap();
+        let l = label(p);
+
+        assert_eq!(
+            l.to_string(),
+            "if [1 = 2]¹ then\n    [skip]²\nelse\n    [skip]³"
+        );
+    }
+
+    #[test]
+    fn if_statement_neq_check() {
+        let p = parse("if 1 != 2 then skip else skip").unwrap();
+        let l = label(p);
+
+        assert_eq!(
+            l.to_string(),
+            "if [1 ≠ 2]¹ then\n    [skip]²\nelse\n    [skip]³"
+        );
+    }
+
+    #[test]
+    fn if_statement_lt_check() {
+        let p = parse("if 1 < 2 then skip else skip").unwrap();
+        let l = label(p);
+
+        assert_eq!(
+            l.to_string(),
+            "if [1 < 2]¹ then\n    [skip]²\nelse\n    [skip]³"
+        );
+    }
+
+    #[test]
+    fn if_statement_leq_check() {
+        let p = parse("if 1 <= 2 then skip else skip").unwrap();
+        let l = label(p);
+
+        assert_eq!(
+            l.to_string(),
+            "if [1 ≤ 2]¹ then\n    [skip]²\nelse\n    [skip]³"
+        );
+    }
+
+    #[test]
+    fn if_statement_gt_check() {
+        let p = parse("if 1 > 2 then skip else skip").unwrap();
+        let l = label(p);
+
+        assert_eq!(
+            l.to_string(),
+            "if [1 > 2]¹ then\n    [skip]²\nelse\n    [skip]³"
+        );
+    }
+
+    #[test]
+    fn if_statement_geq_check() {
+        let p = parse("if 1 >= 2 then skip else skip").unwrap();
+        let l = label(p);
+
+        assert_eq!(
+            l.to_string(),
+            "if [1 ≥ 2]¹ then\n    [skip]²\nelse\n    [skip]³"
+        );
+    }
+
+    #[test]
+    fn if_statement_and_cond() {
+        let p = parse("if true and false then skip else skip").unwrap();
+        let l = label(p);
+
+        assert_eq!(
+            l.to_string(),
+            "if [true ∧ false]¹ then\n    [skip]²\nelse\n    [skip]³"
+        );
+    }
+
+    #[test]
+    fn if_statement_or_cond() {
+        let p = parse("if true or false then skip else skip").unwrap();
+        let l = label(p);
+
+        assert_eq!(
+            l.to_string(),
+            "if [true ∨ false]¹ then\n    [skip]²\nelse\n    [skip]³"
+        );
+    }
+
+    #[test]
+    fn if_statement_nested() {
+        let p = parse("if 1 = 2 then if 3 = 4 then skip else skip else skip").unwrap();
+        let l = label(p);
+
+        assert_eq!(
+            l.to_string(),
+            "if [1 = 2]¹ then\n    if [3 = 4]² then\n        [skip]³\n    else\n        [skip]⁴\nelse\n    [skip]⁵"
+        );
+    }
+
+    #[test]
+    fn if_statement_nested_with_seq() {
+        let p = parse("if 1 = 2 then x := 1; y := 2 else skip").unwrap();
+        let l = label(p);
+
+        assert_eq!(
+            l.to_string(),
+            "if [1 = 2]¹ then\n    [x := 1]²;\n    [y := 2]³\nelse\n    [skip]⁴"
+        );
+    }
+
+    #[test]
+    fn while_loop() {
+        let p = parse("while true do (skip)").unwrap();
+        let l = label(p);
+
+        assert_eq!(l.to_string(), "while [true]¹ do (\n    [skip]²)");
+    }
+
+    #[test]
+    fn while_loop_nested() {
+        let p = parse("while true do (while false do (skip))").unwrap();
+        let l = label(p);
+
+        assert_eq!(
+            l.to_string(),
+            "while [true]¹ do (\n    while [false]² do (\n        [skip]³))"
+        );
+    }
+
+    #[test]
+    fn while_loop_followed_by_statement() {
+        let p = parse("while true do (skip); skip").unwrap();
+        let l = label(p);
+
+        assert_eq!(l.to_string(), "while [true]¹ do (\n    [skip]²);\n[skip]³");
     }
 }
